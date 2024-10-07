@@ -20,15 +20,24 @@ class LPFile():
     def __init__(self, filename, create):
         # globals
         mycontext['debug'] = False
+        
 
-        if create == False and 'default' in listfiles():
-            default_file = openfile('default', False)
-            content = default_file.readat(None, 0) # Read from the file using the sandbox's readat
+        # If `create=True`, create a new file and track it
+        if create:
             self.LPfile = openfile(filename, True)
-            self.LPfile.writeat(content, 0)
-            default_file.close()
+            
         else:
-            self.LPfile = openfile(filename, create)
+            # If `create=False` and `default` exists, create the new file from `default`
+            if 'default' in listfiles():
+                default_file = openfile('default', False)
+                content = default_file.readat(None, 0)  # Read entire content of `default`
+                self.LPfile = openfile(filename, True)  # Create the new file
+                self.LPfile.writeat(content, 0)  # Write `default` content to new file
+                default_file.close()
+                
+            else:
+                # If `default` does not exist, raise an error
+                raise FileNotFoundError("Cannot create file '{}' without `default` template.".format(filename))
 
     def readat(self, num_bytes, offset):
         return self.LPfile.readat(num_bytes, offset)

@@ -1,0 +1,59 @@
+ # Clean up any existing files before starting the test
+if "default" in listfiles():
+    removefile("default")
+if "testfile_empty.txt" in listfiles():
+    removefile("testfile_empty.txt")
+if "testfile_template.txt" in listfiles():
+    removefile("testfile_template.txt")
+if "testfile_no_default.txt" in listfiles():
+    removefile("testfile_no_default.txt")
+
+# --- Test 1: Create a new empty file with create=True ---
+
+try:
+    myfile_empty = openfile("testfile_empty.txt", True)  # Create a new empty file
+    assert myfile_empty.readat(None, 0) == ""  # Check that the file is empty
+    log("Test 1 Passed: Created empty file with create=True.\n")
+    myfile_empty.close()
+except Exception as e:
+    log("Test 1 Failed: {}\n".format(str(e)))
+
+# --- Test 2: Create a file using `default` as a template with create=False ---
+
+try:
+    # Step 1: Create `default` and write some initial content to it
+    initial_content = "Default Content Template."
+    default = openfile("default", True)  # Make sure to use "default" without an extension
+    default.writeat(initial_content, 0)
+    default.close()  # Close `default` after writing to ensure no file locks remain
+
+    # Step 2: Create a new file with `create=False` to copy content from `default`
+    # This should use the content of `default` automatically
+    myfile_template = openfile("testfile_template.txt", False)
+    
+    # Step 3: Read content from `testfile_template.txt` to verify it matches `default`
+    copied_content = myfile_template.readat(None, 0)
+    
+    # Step 4: Verify that the content matches the `default` file's content
+    assert copied_content == initial_content  # Directly compare with the initial content written to `default`
+    log("Test 2 Passed: Created file using `default` as template and copied its content.\n")
+    
+    myfile_template.close()
+except Exception as e:
+    log("Test 2 Failed: {}\n".format(str(e)))
+
+
+# --- Test 3: Try to create a file with create=False without `default` ---
+
+# Remove `default` to test error handling
+if "default" in listfiles():
+    removefile("default")
+
+try:
+    # Try to open a file with `create=False` without having `default`
+    myfile_no_default = openfile("testfile_no_default.txt", False)
+    log("Test 3 Failed: File created without `default` when it shouldn't have.\n")
+except FileNotFoundError as e:
+    log("Test 3 Passed: Correctly raised FileNotFoundError when `default` is absent.\n")
+except Exception as e:
+    log("Test 3 Failed: Unexpected error occurred: {}\n".format(str(e)))
