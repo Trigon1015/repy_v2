@@ -21,6 +21,9 @@ class LPFile():
         # globals
         mycontext['debug'] = False
         
+        # Initialize file state
+        self.filename = filename
+        self.is_closed = False  # Track if the file is closed
 
         # If `create=True`, create a new file and track it
         if create:
@@ -40,19 +43,57 @@ class LPFile():
                 raise FileNotFoundError("Cannot create file '{}' without `default` template.".format(filename))
 
     def readat(self, num_bytes, offset):
+        # Check if file is closed
+        if self.is_closed:
+            raise IOError("Cannot read from closed file '{}'.".format(self.filename))
+        
+        # Validate offset
+        if offset < 0:
+            raise ValueError("Offset cannot be negative")
+
+        # Limit the number of bytes that can be read at once for security
+        max_read_size = 1024  # Define your max read size here
+        if num_bytes is not None and num_bytes > max_read_size:
+            raise ValueError("Cannot read more than {} bytes at once".format(max_read_size))
+
+        # Perform the read operation
         return self.LPfile.readat(num_bytes, offset)
 
     def writeat(self, data, offset):
-        self.LPfile.writeat(data, offset)
+        # Check if file is closed
+        if self.is_closed:
+            raise IOError("Cannot write to closed file '{}'.".format(self.filename))
+        
+        # Validate offset
+        if offset < 0:
+            raise ValueError("Offset cannot be negative")
+
+        # Validate data to ensure it's a string
+        if not isinstance(data, str):
+            raise ValueError("Data to be written must be a string.")
+
+        # Perform the write operation
+        return self.LPfile.writeat(data, offset)
 
     def close(self):
+        # Check if file is already closed
+        if self.is_closed:
+            raise IOError("File '{}' is already closed.".format(self.filename))
+        
+        # Close the file
         self.LPfile.close()
+        self.is_closed = True  # Mark file as closed
+
         
 def LPopenfile(filename, create):
     return LPFile(filename, create)
 
 def LPremovefile(filename):
-    removefile(filename) 
+    # Attempt to remove the file, handling errors if file is in use
+    try:
+        removefile(filename)
+    except Exception as e:
+        raise IOError("Cannot remove file '{}': {}".format(filename, str(e))) 
 
 
 # The code below sets up type checking and variable hiding for you.

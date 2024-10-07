@@ -45,11 +45,11 @@ except Exception as e:
 
 # --- Test 3: Try to create a file with create=False without `default` ---
 
-# Remove `default` to test error handling
-if "default" in listfiles():
-    removefile("default")
-
 try:
+    # Step 1: Remove `default` to test error handling
+    if "default" in listfiles():
+        removefile("default")
+
     # Try to open a file with `create=False` without having `default`
     myfile_no_default = openfile("testfile_no_default.txt", False)
     log("Test 3 Failed: File created without `default` when it shouldn't have.\n")
@@ -57,3 +57,247 @@ except FileNotFoundError as e:
     log("Test 3 Passed: Correctly raised FileNotFoundError when `default` is absent.\n")
 except Exception as e:
     log("Test 3 Failed: Unexpected error occurred: {}\n".format(str(e)))
+
+# --- Test `readat` functionality while respecting `default` template requirement ---
+
+try:
+    # Step 1: Ensure `default` exists with some content
+    if "default" not in listfiles():
+        default_content = "Default template content.\n"
+        default_file = openfile("default", True)  # Create the `default` template file
+        default_file.writeat(default_content, 0)
+        default_file.close()
+
+    # Step 2: If `readat_test.txt` exists, remove it
+    if "readat_test.txt" in listfiles():
+        removefile("readat_test.txt")
+
+    # Step 3: Create `readat_test.txt` using `default` template
+    testfile = openfile("readat_test.txt", True)  # Use create=False to use `default` template
+
+    # Step 4: Overwrite `readat_test.txt` with test-specific content
+    test_content = "This is some test content for readat function.\nIt has multiple lines of text."
+    # Overwrite the content from the start of the file
+    testfile.writeat(test_content, 0)
+
+    testfile.close()  # Close after writing to ensure it's properly saved
+
+    # Step 5: Reopen the test file for reading
+    testfile = openfile("readat_test.txt", True)
+
+    # Step 6: Test reading specific bytes from a specific offset
+    offset = 10
+    num_bytes = 20
+    read_data = testfile.readat(num_bytes, offset)  # Read `num_bytes` starting at `offset`
+
+    # Verify the read data
+    expected_data = test_content[offset:offset + num_bytes]
+    assert read_data == expected_data, "Expected: {}, Got: {}".format(expected_data, read_data)
+    log("Test `readat` Passed: Read {} bytes from offset {} correctly.\n".format(num_bytes, offset))
+
+    # Step 7: Read the entire file from offset 0
+    read_full_data = testfile.readat(None, 0)
+    assert read_full_data.startswith(test_content), "Expected full content, but got different data"
+    log("Test `readat` Passed: Read the full content correctly from offset 0.\n")
+
+    # Step 8: Close the test file
+    testfile.close()
+
+except Exception as e:
+    log("Test `readat` Failed: {}\n".format(str(e)))
+
+
+# Clean up any existing files before starting the test
+if "writeat_test.txt" in listfiles():
+    removefile("writeat_test.txt")
+
+
+
+
+
+# --- Test `writeat` functionality while respecting `default` template requirement ---
+# Clean up any existing files before starting the test
+if "writeat_test.txt" in listfiles():
+    removefile("writeat_test.txt")
+
+# --- Test 1: Write data to a new empty file with create=True ---
+
+try:
+    # Step 1: Create a new file
+    write_file = openfile("writeat_test.txt", True)
+
+    # Step 2: Write some content to the new file
+    content_to_write = "This is the first line of text."
+    write_file.writeat(content_to_write, 0)  # Write at the start of the file
+
+    # Step 3: Verify the content was written correctly
+    read_back_content = write_file.readat(None, 0)
+    assert read_back_content == content_to_write, "Expected: {}, Got: {}".format(content_to_write, read_back_content)
+    log("Test 1 Passed: Successfully wrote content to a new empty file.\n")
+
+    # Step 4: Close the file
+    write_file.close()
+
+except Exception as e:
+    log("Test 1 Failed: {}\n".format(str(e)))
+
+
+# --- Test 2: Append data to an existing file ---
+
+try:
+    # Step 1: Reopen the existing file in append mode
+    write_file = openfile("writeat_test.txt", True)
+
+    # Step 2: Append additional content to the file
+    additional_content = "\nThis is an appended line of text."
+    write_file.writeat(additional_content, len(content_to_write))  # Append at the end of the first line
+
+    # Step 3: Verify the content was appended correctly
+    expected_content = content_to_write + additional_content
+    read_back_content = write_file.readat(None, 0)
+    assert read_back_content == expected_content, "Expected: {}, Got: {}".format(expected_content, read_back_content)
+    log("Test 2 Passed: Successfully appended content to the file.\n")
+
+    # Step 4: Close the file
+    write_file.close()
+
+except Exception as e:
+    log("Test 2 Failed: {}\n".format(str(e)))
+
+
+# --- Test 3: Overwrite data at a specific offset without removing the remaining content ---
+
+try:
+    # Step 1: Read the current content of the file
+    write_file = openfile("writeat_test.txt", True)
+    current_content = write_file.readat(None, 0)
+    write_file.close()
+
+    # Step 2: Overwrite content at a specific offset
+    overwrite_content = "Overwritten"
+    offset = 10
+    # Create the new content by combining original content up to `offset`, the new `overwrite_content`,
+    # and the remaining content after the `overwrite_content`
+    new_content = (
+        current_content[:offset] +  # Content before the offset
+        overwrite_content +         # The new content to be inserted
+        current_content[offset + len(overwrite_content):]  # Content after the overwritten part
+    )
+
+    # Step 3: Rewrite the file with the new content
+    write_file = openfile("writeat_test.txt", True)
+    write_file.writeat(new_content, 0)
+
+    # Step 4: Verify that the content was correctly overwritten without removing remaining lines
+    read_back_content = write_file.readat(None, 0)
+    assert read_back_content == new_content, "Expected: {}, Got: {}".format(new_content, read_back_content)
+    log("Test 3 Passed: Successfully overwrote content at a specific offset while preserving the remaining content.\n")
+
+    # Step 5: Close the file
+    write_file.close()
+
+except Exception as e:
+    log("Test 3 Failed: {}\n".format(str(e)))
+
+# --- Test 4: Attempt to write to a file after closing it ---
+
+try:
+    # Step 1: Create a new file and write some content
+    write_file = openfile("writeat_closed_test.txt", True)
+    content_to_write = "Initial content before closing."
+    write_file.writeat(content_to_write, 0)
+
+    # Step 2: Close the file
+    write_file.close()
+
+    # Step 3: Attempt to write to the closed file
+    try:
+        write_file.writeat("This write should fail.", 0)
+        log("Test 4 Failed: Successfully wrote to a closed file when it shouldn't be possible.\n")
+    except Exception as e:
+        log("Test 4 Passed: Correctly raised error when writing to a closed file: {}\n".format(str(e)))
+
+except Exception as e:
+    log("Test 4 Failed: Unexpected error: {}\n".format(str(e)))
+
+
+# --- Test `close` functionality for files ------------------------------------------
+
+# Clean up any existing files before starting the test
+if "close_test.txt" in listfiles():
+    removefile("close_test.txt")
+
+# --- Test 1: Successfully close a file after operations ---
+
+try:
+    # Step 1: Create a new file and write some content
+    close_file = openfile("close_test.txt", True)
+    content_to_write = "This content is for close testing."
+    close_file.writeat(content_to_write, 0)
+
+    # Step 2: Verify that content was written correctly
+    read_back_content = close_file.readat(None, 0)
+    assert read_back_content == content_to_write, "Expected: {}, Got: {}".format(content_to_write, read_back_content)
+
+    # Step 3: Close the file
+    close_file.close()
+    log("Test 1 Passed: Successfully closed the file after operations.\n")
+
+except Exception as e:
+    log("Test 1 Failed: {}\n".format(str(e)))
+
+
+# --- Test 2: Ensure operations on a closed file raise an error ---
+
+try:
+    # Step 1: Reopen the file and immediately close it
+    close_file = openfile("close_test.txt", True)
+    close_file.close()
+
+    # Step 2: Attempt to read from the closed file
+    try:
+        close_file.readat(None, 0)
+        log("Test 2 Failed: Successfully read from a closed file when it shouldn't be possible.\n")
+    except Exception as e:
+        log("Test 2 Passed: Correctly raised error when reading from a closed file: {}\n".format(str(e)))
+
+    # Step 3: Attempt to write to the closed file
+    try:
+        close_file.writeat("This write should fail.", 0)
+        log("Test 2 Failed: Successfully wrote to a closed file when it shouldn't be possible.\n")
+    except Exception as e:
+        log("Test 2 Passed: Correctly raised error when writing to a closed file: {}\n".format(str(e)))
+
+except Exception as e:
+    log("Test 2 Failed: Unexpected error: {}\n".format(str(e)))
+
+
+
+# --- Test 3: Reopen a file after closing and perform operations ---
+
+try:
+    # Step 1: Reopen the file after closing
+    close_file = openfile("close_test.txt", True)
+
+    # Step 2: Verify that content is still present
+    read_back_content = close_file.readat(None, 0)
+    assert read_back_content == content_to_write, "Expected: {}, Got: {}".format(content_to_write, read_back_content)
+
+    # Step 3: Append additional content and close the file again
+    additional_content = " Appending after reopening."
+    close_file.writeat(additional_content, len(read_back_content))
+    close_file.close()
+
+    # Step 4: Reopen the file and verify appended content
+    close_file = openfile("close_test.txt", True)
+    full_content = content_to_write + additional_content
+    read_back_content = close_file.readat(None, 0)
+    assert read_back_content == full_content, "Expected: {}, Got: {}".format(full_content, read_back_content)
+
+    # Close the file
+    close_file.close()
+    log("Test 3 Passed: Successfully reopened and appended content to the file after closing.\n")
+
+except Exception as e:
+    log("Test 3 Failed: {}\n".format(str(e)))
+
