@@ -45,6 +45,8 @@ class LPFile():
             else:
                 mycontext['defaultFileHandler'] = self.LPfile
 
+
+
     def readat(self, num_bytes, offset):
         return self.LPfile.readat(num_bytes, offset)
 
@@ -59,12 +61,14 @@ class LPFile():
 def deletePreviouslyClosedFiles():
     mycontext['removedfiles'] = set()
     for filename in mycontext['fileNamesList']:
-        try:
-            removefile(filename)
-            mycontext['removedfiles'].add(filename)
-        except FileInUseError:
-            continue
+        if filename in listfiles():  # Check if the file still exists
+            try:
+                removefile(filename)
+                mycontext['removedfiles'].add(filename)
+            except FileInUseError:
+                continue
     mycontext['fileNamesList'] = list(set(mycontext['fileNamesList']) - mycontext['removedfiles'])
+
 
 def LPopenfile(filename, create):
     return LPFile(filename, create)  
