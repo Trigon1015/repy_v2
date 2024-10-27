@@ -75,7 +75,10 @@ def LPopenfile(filename, create):
 
 def LPremovefile(filename):
     if filename == 'default' and mycontext['defaultFileHandler'] != None:  
-        deletePreviouslyClosedFiles()
+         # Close the default file if it is open
+        mycontext['defaultFileHandler'].close()
+        mycontext['defaultFileHandler'] = None  # Reset the handler after closing
+        deletePreviouslyClosedFiles()  # Proceed to delete any closed files after default is closed
     elif filename in mycontext['fileNamesList']:
         mycontext['fileNamesList'].remove(filename)
     removefile(filename)  
