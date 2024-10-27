@@ -15,44 +15,66 @@ TARGET = "target"
 FUNC = "func"  
 OBJC = "objc"
 
+mycontext['defaultFileHandler'] = None  
+mycontext['fileNamesList'] = []
 
 class LPFile():
     def __init__(self, filename, create):
         # globals
-        mycontext['debug'] = False
-        
+        mycontext['debug'] = False  
 
-        # If `create=True`, create a new file and track it
-        if create:
-            self.LPfile = openfile(filename, True)
-            
-        else:
-            # If `create=False` and `default` exists, create the new file from `default`
-            if 'default' in listfiles():
-                default_file = openfile('default', False)
-                content = default_file.readat(None, 0)  # Read entire content of `default`
-                self.LPfile = openfile(filename, True)  # Create the new file
-                self.LPfile.writeat(content, 0)  # Write `default` content to new file
+        if create == False and 'default' in listfiles() and filename not in listfiles():  
+            self.LPfile = openfile(filename, True)  
+            try:
+                default_file = openfile('default', False)  
+                content = default_file.readat(None, 0) # Read from the file using the sandbox's readat
                 default_file.close()
-                
+            except FileInUseError:  
+                default_file = mycontext['defaultFileHandler'] 
+                content = default_file.readat(None, 0) # Read from the file using the sandbox's readat
+            self.LPfile.writeat(content, 0)
+            mycontext['fileNamesList'].append(filename)  
+        elif create == True and filename == 'default' and filename not in listfiles():  
+            self.LPfile = openfile(filename, create)  
+            mycontext['defaultFileHandler'] = self.LPfile  
+            deletePreviouslyClosedFiles()
+        else:
+            self.LPfile = openfile(filename, create)  
+            if filename != 'default':
+                mycontext['fileNamesList'].append(filename)  
             else:
-                # If `default` does not exist, raise an error
-                raise FileNotFoundError("Cannot create file '{}' without `default` template.".format(filename))
+                mycontext['defaultFileHandler'] = self.LPfile
 
     def readat(self, num_bytes, offset):
         return self.LPfile.readat(num_bytes, offset)
 
     def writeat(self, data, offset):
         self.LPfile.writeat(data, offset)
+        if self.LPfile == mycontext['defaultFileHandler']:  
+            deletePreviouslyClosedFiles()
 
     def close(self):
         self.LPfile.close()
         
+def deletePreviouslyClosedFiles():
+    mycontext['removedfiles'] = set()
+    for filename in mycontext['fileNamesList']:
+        try:
+            removefile(filename)
+            mycontext['removedfiles'].add(filename)
+        except FileInUseError:
+            continue
+    mycontext['fileNamesList'] = list(set(mycontext['fileNamesList']) - mycontext['removedfiles'])
+
 def LPopenfile(filename, create):
-    return LPFile(filename, create)
+    return LPFile(filename, create)  
 
 def LPremovefile(filename):
-    removefile(filename) 
+    if filename == 'default' and mycontext['defaultFileHandler'] != None:  
+        deletePreviouslyClosedFiles()
+    elif filename in mycontext['fileNamesList']:
+        mycontext['fileNamesList'].remove(filename)
+    removefile(filename)  
 
 
 # The code below sets up type checking and variable hiding for you.
