@@ -28,28 +28,68 @@ class LPFile():
 
         if create == False and 'default' in listfiles() and filename not in listfiles():  
             self.LPfile = openfile(filename, True)  
-            try:
-                default_file = openfile('default', False)  
-                content = default_file.readat(None, 0) # Read from the file using the sandbox's readat
-                default_file.close()
-            except FileInUseError:  
-                default_file = mycontext['defaultFileHandler'] 
-                content = default_file.readat(None, 0) # Read from the file using the sandbox's readat
+            success = False
+            while not success:
+                try:
+                    # Check if 'default' is already open; if so, use the existing handler
+                    if mycontext['file_states'].get('default') == "closed":
+                        default_file = openfile('default', False)
+                        mycontext['defaultFileHandler'] = default_file
+                        mycontext['file_states']['default'] = "open"  # Mark as open
+                    else:
+                        default_file = mycontext['defaultFileHandler']
+
+                    # Attempt to read content from 'default'
+                    content = default_file.readat(None, 0)
+                    success = True  # Exit loop after successful read
+                except FileClosedError:
+                    # Retry if 'default' was closed during the read
+                    success = False  # Continue the loop to retry
+                except FileInUseError:
+                    # Wait briefly and retry if 'default' is in use by another process
+                    sleep(0.01)
+
+            # Write the content to the new file after successfully reading 'default'
             self.LPfile.writeat(content, 0)
             mycontext['fileNamesList'].append(filename)  
             mycontext['file_states'][filename] = "open"  # Track file as open
+
+
+
+
         elif create == True and filename == 'default' and filename not in listfiles():  
-            self.LPfile = openfile(filename, create)  
-            mycontext['defaultFileHandler'] = self.LPfile  
-            deletePreviouslyClosedFiles()
-            mycontext['file_states'][filename] = "open"
+            # Check if 'default' is already open
+            if mycontext['file_states'].get('default') != "open":
+                self.LPfile = openfile(filename, create)  
+                mycontext['defaultFileHandler'] = self.LPfile  
+                deletePreviouslyClosedFiles()  # Delete previously closed files only when default is newly created
+                mycontext['file_states'][filename] = "open"
+            else:
+                self.LPfile = mycontext['defaultFileHandler']  # Use the existing open handler if already open
+        
         else:
-            self.LPfile = openfile(filename, create)  
+            # Ensure file exists if not creating it
+            if not create and filename not in listfiles():
+                raise FileNotFoundError("Cannot open non-existent file '{filename}' without creating it.")
+            
+            # Check if "default" is already open to avoid concurrent opening issues
+            if filename == "default" and mycontext['file_states'].get("default") == "open":
+                # If "default" is open, use the existing handler
+                self.LPfile = mycontext['defaultFileHandler']
+            else:
+                # Proceed with opening or creating the file as specified
+                self.LPfile = openfile(filename, create)  
+            
             if filename != 'default':
                 mycontext['fileNamesList'].append(filename)  
             else:
-                mycontext['defaultFileHandler'] = self.LPfile
+                # Set the default file handler if it was not open already
+                if mycontext['file_states'].get('default') != "open":
+                    mycontext['defaultFileHandler'] = self.LPfile
+
+            # Track the file as open in the file states
             mycontext['file_states'][filename] = "open"
+
 
 
 
@@ -62,10 +102,6 @@ class LPFile():
             deletePreviouslyClosedFiles()
 
     def close(self):
-        if mycontext['file_states'].get(self.filename) == "closed":
-            raise FileClosedError("File '{self.filename}' is already closed.")
-        
-        # Close the file and mark it as closed in state tracking
         self.LPfile.close()
         mycontext['file_states'][self.filename] = "closed"
         
