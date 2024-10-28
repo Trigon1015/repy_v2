@@ -62,7 +62,7 @@ class LPFile():
             if mycontext['file_states'].get('default') != "open":
                 self.LPfile = openfile(filename, create)  
                 mycontext['defaultFileHandler'] = self.LPfile  
-                deletePreviouslyClosedFiles()  # Delete previously closed files only when default is newly created
+                deleteAlreadyClosedFiles()  # Delete previously closed files only when default is newly created
                 mycontext['file_states'][filename] = "open"
             else:
                 self.LPfile = mycontext['defaultFileHandler']  # Use the existing open handler if already open
@@ -90,32 +90,18 @@ class LPFile():
             # Track the file as open in the file states
             mycontext['file_states'][filename] = "open"
 
-
-
-
     def readat(self, num_bytes, offset):
         return self.LPfile.readat(num_bytes, offset)
 
     def writeat(self, data, offset):
         self.LPfile.writeat(data, offset)
         if self.LPfile == mycontext['defaultFileHandler']:  
-            deletePreviouslyClosedFiles()
+            deleteAlreadyClosedFiles()
 
     def close(self):
         self.LPfile.close()
         mycontext['file_states'][self.filename] = "closed"
         
-def deletePreviouslyClosedFiles():
-    mycontext['removedfiles'] = set()
-    for filename in mycontext['fileNamesList']:
-        if filename in listfiles():  # Check if the file still exists
-            try:
-                removefile(filename)
-                mycontext['removedfiles'].add(filename)
-            except FileInUseError:
-                continue
-    mycontext['fileNamesList'] = list(set(mycontext['fileNamesList']) - mycontext['removedfiles'])
-
 
 def LPopenfile(filename, create):
     return LPFile(filename, create)  
@@ -126,11 +112,21 @@ def LPremovefile(filename):
         if mycontext['file_states'].get('default') != "closed":
             mycontext['defaultFileHandler'].close()
             mycontext['defaultFileHandler'] = None  # Reset the handler after closing
-        deletePreviouslyClosedFiles()  # Proceed to delete any closed files after default is closed
+        deleteAlreadyClosedFiles()  # Proceed to delete any closed files after default is closed
     elif filename in mycontext['fileNamesList']:
         mycontext['fileNamesList'].remove(filename)
     removefile(filename)  
 
+def deleteAlreadyClosedFiles():
+    mycontext['removedfiles'] = set()
+    for filename in mycontext['fileNamesList']:
+        if filename in listfiles():  # Check if the file still exists
+            try:
+                removefile(filename)
+                mycontext['removedfiles'].add(filename)
+            except FileInUseError:
+                continue
+    mycontext['fileNamesList'] = list(set(mycontext['fileNamesList']) - mycontext['removedfiles'])
 
 # The code below sets up type checking and variable hiding for you.
 # You should not change anything below this point.
