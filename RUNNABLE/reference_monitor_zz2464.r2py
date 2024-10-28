@@ -17,9 +17,12 @@ OBJC = "objc"
 
 mycontext['defaultFileHandler'] = None  
 mycontext['fileNamesList'] = []
+mycontext['file_states'] = {}  # Tracks the open/closed state of each file
 
 class LPFile():
     def __init__(self, filename, create):
+        # Set the filename attribute to reference it in other methods
+        self.filename = filename
         # globals
         mycontext['debug'] = False  
 
@@ -34,16 +37,19 @@ class LPFile():
                 content = default_file.readat(None, 0) # Read from the file using the sandbox's readat
             self.LPfile.writeat(content, 0)
             mycontext['fileNamesList'].append(filename)  
+            mycontext['file_states'][filename] = "open"  # Track file as open
         elif create == True and filename == 'default' and filename not in listfiles():  
             self.LPfile = openfile(filename, create)  
             mycontext['defaultFileHandler'] = self.LPfile  
             deletePreviouslyClosedFiles()
+            mycontext['file_states'][filename] = "open"
         else:
             self.LPfile = openfile(filename, create)  
             if filename != 'default':
                 mycontext['fileNamesList'].append(filename)  
             else:
                 mycontext['defaultFileHandler'] = self.LPfile
+            mycontext['file_states'][filename] = "open"
 
 
 
@@ -56,7 +62,12 @@ class LPFile():
             deletePreviouslyClosedFiles()
 
     def close(self):
+        if mycontext['file_states'].get(self.filename) == "closed":
+            raise FileClosedError("File '{self.filename}' is already closed.")
+        
+        # Close the file and mark it as closed in state tracking
         self.LPfile.close()
+        mycontext['file_states'][self.filename] = "closed"
         
 def deletePreviouslyClosedFiles():
     mycontext['removedfiles'] = set()
@@ -76,8 +87,9 @@ def LPopenfile(filename, create):
 def LPremovefile(filename):
     if filename == 'default' and mycontext['defaultFileHandler'] != None:  
          # Close the default file if it is open
-        mycontext['defaultFileHandler'].close()
-        mycontext['defaultFileHandler'] = None  # Reset the handler after closing
+        if mycontext['file_states'].get('default') != "closed":
+            mycontext['defaultFileHandler'].close()
+            mycontext['defaultFileHandler'] = None  # Reset the handler after closing
         deletePreviouslyClosedFiles()  # Proceed to delete any closed files after default is closed
     elif filename in mycontext['fileNamesList']:
         mycontext['fileNamesList'].remove(filename)
